@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Умный дом: энергобаланс</title>
+    <style>
+        body { font-family: sans-serif; background: #121824; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; user-select: none; }
+        h1 { color: #4ade80; margin: 0 0 10px 0; }
+        #stats { display: flex; gap: 15px; margin-bottom: 15px; }
+        .stat-box { background: #1e293b; padding: 10px 15px; border-radius: 8px; border: 1px solid #334155; }
+        #main-layout { display: flex; gap: 20px; }
+        #game-container { position: relative; width: 600px; height: 400px; background: #0f172a; border: 3px solid #334155; border-radius: 12px; overflow: hidden; }
+        #background-house { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; width: 100%; height: 100%; position: absolute; z-index: 1; }
+        .room { border: 1px dashed #334155; padding: 15px; box-sizing: border-box; background: #1e293b; position: relative; display: flex; flex-direction: column; justify-content: flex-start; }
+        .room-title { font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase; }
+        .room-upgrade-status { font-size: 0.75rem; color: #38bdf8; }
+        .interactive-object { position: absolute; z-index: 2; cursor: pointer; font-size: 3.5rem; transition: transform 0.1s; bottom: 25px; left: calc(50% - 1.75rem); filter: grayscale(80%); }
+        .wasteful { filter: grayscale(0%) drop-shadow(0 0 15px #ef4444); animation: shake 0.3s infinite alternate; }
+        @keyframes shake { from { transform: rotate(-5deg) scale(1.05); } to { transform: rotate(5deg) scale(1.05); } }
+        #shop-container { width: 250px; background: #1e293b; border-radius: 12px; padding: 15px; border: 1px solid #334155; box-sizing: border-box; }
+        .shop-item { background: #0f172a; padding: 8px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #334155; font-size: 0.8rem; }
+        .shop-item p { margin: 2px 0; }
+        .shop-btn { width: 100%; background: #2563eb; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .shop-btn:hover { background: #1d4ed8; }
+        .shop-btn:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+        .hidden { display: none !important; }
+        button.main-btn { background: #22c55e; color: #052e16; border: none; padding: 12px 30px; font-size: 1.1rem; font-weight: bold; border-radius: 20px; cursor: pointer; margin-top: 15px; }
+        .rules-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8rem; background: #1e293b; }
+        .rules-table th, .rules-table td { border: 1px solid #334155; padding: 6px; text-align: left; }
+        .rules-table th { background: #0f172a; color: #f59e0b; }
+        #leaderboard { width: 870px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 15px; margin-top: 20px; box-sizing: border-box; text-align: center; }
+        #leaderboard h3 { margin: 0 0 15px 0; color: #38bdf8; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
+        .score-list { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0; margin: 0; list-style: none; }
+        .score-item { background: #0f172a; border: 1px solid #334155; padding: 10px 20px; border-radius: 6px; font-size: 0.95rem; color: #cbd5e1; width: 280px; text-align: left; display: flex; justify-content: space-between; }
+        .score-item strong { color: #4ade80; }
+        .sound-btn { width: 100%; background: #475569; color: white; border: 1px solid #64748b; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9rem; margin-top: 15px; transition: background 0.2s; text-align: center; box-sizing: border-box; }
+        .sound-btn:hover { background: #334155; }
+        .author-box { margin-top: 25px; padding-top: 15px; border-top: 1px solid #334155; font-size: 0.8rem; color: #94a3b8; line-height: 1.5; text-align: center; max-width: 85%; }
+        .author-box strong { color: #38bdf8; }
+    </style>
+</head>
+<body>
+
+    <h1>Умный дом: энергобаланс</h1>
+    <div id="stats">
+        <div class="stat-box">Сложность: Ур. <span id="level-score">1</span></div>
+        <div class="stat-box">Монеты: <span id="money-score">0</span> 🟡</div>
+        <div class="stat-box">Сбережено: <span id="eco-score">0</span> кВт</div>
+        <div class="stat-box">Нагрузка: <span id="waste-score">0</span>%</div>
+    </div>
+
+    <div id="main-layout">
+        <div id="game-container">
+            <div id="start-screen" class="screen">
+                <h2>Контроль энергобаланса!</h2>
+                <p style="font-size:0.9rem; color:#94a3b8; margin-bottom: 10px;">Помоги уберечь дом от перегрузки сети.</p>
+                <div style="display: flex; gap: 15px;">
+                    <button class="main-btn" onclick="startGame()">Запустить систему</button>
+                    <button class="main-btn" style="background: #38bdf8; color: #0f172a;" onclick="toggleRules(true)">Инструкция</button>
+                </div>
+                <div class="author-box">
+                    <strong>Разработал:</strong> Дроздов Денис, учащийся 10 "А" класса государственного учреждения образования "Средняя школа №1 г.п. Корма"<br>
+                    <strong>Руководитель:</strong> учитель информатики Левоненко Т.А.
+                </div>
+            </div>
+
+            <div id="rules-screen" class="screen hidden" style="background: rgba(15, 23, 42, 0.98); padding: 20px; overflow-y: auto; justify-content: flex-start;">
+                <h3 style="color: #f59e0b; margin: 0 0 5px 0; font-size: 1.3rem;">Как играть? 📋</h3>
+                <ul style="text-align: left; font-size: 0.8rem; line-height: 1.4; color: #cbd5e1; margin: 0 0 10px 20px; padding: 0;">
+                    <li><strong>Аварии:</strong> Приборы случайно выходят из строя, <strong>мигают красным</strong> и тратят ресурсы.</li>
+                    <li><strong>Клик:</strong> Нажимай на мигающие приборы для возврата в режим экономии и получения наград.</li>
+                    <li><strong>Магазин:</strong> Трать монеты на улучшения комнат, чтобы выдерживать растущую сложность.</li>
+                    <li><strong>Завершение игры:</strong> Игра заканчивается аварийным отключением, как только шкала <strong>«Нагрузка» достигает 100%</strong>. Это происходит, если вовремя не выключать приборы, работающие вхолостую.</li>
+                </ul>
+
+                <h3 style="color: #4ade80; margin: 5px 0 5px 0; font-size: 1.1rem; text-align: left; width: 100%;">Начисление наград:</h3>
+                <p style="text-align: left; font-size: 0.8rem; color: #cbd5e1; margin: 0 0 5px 0;">Чем выше реальное энергопотребление устройства в быту, тем больше Эко-Монет (🟡) и энергии (кВт) начисляется за клик по нему:</p>
+                
+                <table class="rules-table">
+                    <thead>
+                        <tr>
+                            <th>Прибор (Комната)</th>
+                            <th>Награда (Базовая)</th>
+                            <th>После улучшения</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>💡 Лампа накаливания (Спальня)</td>
+                            <td>8 🟡 / 8 кВт</td>
+                            <td>Автовыключение каждые 7 сек</td>
+                        </tr>
+                        <tr>
+                            <td>📺 Телевизор (Гостиная)</td>
+                            <td>10 🟡 / 10 кВт</td>
+                            <td>Защита: -50% урона сети при аварии</td>
+                        </tr>
+                        <tr>
+                            <td>🚰 Обычный кран (Ванная)</td>
+                            <td>12 🟡 / 12 кВт</td>
+                            <td>Защита: 0 урона сети при утечке</td>
+                        </tr>
+                        <tr>
+                            <td>🔌 Электроплита (Кухня)</td>
+                            <td>15 🟡 / 15 кВт</td>
+                            <td><strong>Бонус: 20 🟡 / 20 кВт</strong> за клик</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="main-btn" style="background: #ef4444; color: white; padding: 6px 20px; font-size: 0.95rem; margin-top: 15px; flex-shrink: 0;" onclick="toggleRules(false)">Закрыть</button>
+            </div>
+            <div id="gameover-screen" class="screen hidden">
+                <h2 style="color: #ef4444;">АВАРИЙНОЕ ОТКЛЮЧЕНИЕ! 🔌</h2>
+                <p>Сеть полностью обесточена из-за высокой нагрузки.</p>
+                <p>Результат: сбережено <strong id="final-eco" style="color: #4ade80;">0</strong> кВт.</p>
+                <button class="main-btn" onclick="startGame()">Перезагрузить сеть</button>
+            </div>
+
+            <div id="background-house">
+                <div class="room">
+                    <div class="room-title">Гостиная</div>
+                    <div class="room-upgrade-status" id="upg-text-tv">Базовые приборы</div>
+                    <div id="obj-tv" class="interactive-object" onclick="fixObject('tv')">📺</div>
+                </div>
+                <div class="room">
+                    <div class="room-title">Кухня</div>
+                    <div class="room-upgrade-status" id="upg-text-stove">Старая плита</div>
+                    <div id="obj-stove" class="interactive-object" onclick="fixObject('stove')">🔌</div>
+                </div>
+                <div class="room">
+                    <div class="room-title">Спальня</div>
+                    <div class="room-upgrade-status" id="upg-text-lamp">Накаливания</div>
+                    <div id="obj-lamp" class="interactive-object" onclick="fixObject('lamp')">💡</div>
+                </div>
+                <div class="room">
+                    <div class="room-title">Ванная</div>
+                    <div class="room-upgrade-status" id="upg-text-tap">Обычные краны</div>
+                    <div id="obj-tap" class="interactive-object" onclick="fixObject('tap')">🚰</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="shop-container">
+            <h3 style="margin:0 0 10px 0; color:#f59e0b;">Модернизация 🛠️</h3>
+            <div class="shop-item"><p><strong>Умное ТВ</strong> (-50% урона сети)</p><button class="shop-btn" id="btn-upg-tv" onclick="buyUpgrade('tv', 40)">Купить: 40 🟡</button></div>
+            <div class="shop-item"><p><strong>Индукция</strong> (+5 за клик)</p><button class="shop-btn" id="btn-upg-stove" onclick="buyUpgrade('stove', 60)">Купить: 60 🟡</button></div>
+            <div class="shop-item"><p><strong>LED-лампы</strong> (Автовыкл.)</p><button class="shop-btn" id="btn-upg-lamp" onclick="buyUpgrade('lamp', 80)">Купить: 80 🟡</button></div>
+            <div class="shop-item"><p><strong>Сенсор</strong> (0 урона сети от воды)</p><button class="shop-btn" id="btn-upg-tap" onclick="buyUpgrade('tap', 100)">Купить: 100 🟡</button></div>
+            <button id="toggle-sound-btn" class="sound-btn" onclick="toggleSound()">Звук: ВКЛ 🔊</button>
+        </div>
+    </div>
+
+    <div id="leaderboard">
+        <h3>🏆 Топ-5 лучших попыток</h3>
+        <ul class="score-list" id="score-list-container">
+            <li class="score-item">Попыток нет</li>
+        </ul>
+    </div>
+    <script>
+        const objects = {
+            tv: { id: 'obj-tv', isWasteful: false, normal: '📺', waste: '🖥️', points: 10, coins: 10, upgraded: false },
+            stove: { id: 'obj-stove', isWasteful: false, normal: '🔌', waste: '🎛️', points: 15, coins: 15, upgraded: false },
+            lamp: { id: 'obj-lamp', isWasteful: false, normal: '💤', waste: '💡', points: 8, coins: 8, upgraded: false },
+            tap: { id: 'obj-tap', isWasteful: false, normal: '💧', waste: '🚰', points: 12, coins: 12, upgraded: false }
+        };
+
+        let ecoScore = 0, moneyScore = 0, wasteScore = 0, gameLevel = 1, spawnTime = 1500;
+        let gameInterval, wasteInterval, levelInterval, autoLampInterval, isGameRunning = false;
+
+        function updateUI() {
+            document.getElementById('eco-score').innerText = ecoScore;
+            document.getElementById('money-score').innerText = moneyScore;
+            document.getElementById('waste-score').innerText = Math.floor(wasteScore);
+            document.getElementById('level-score').innerText = gameLevel;
+            updateShopBtn('tv', 40); updateShopBtn('stove', 60); updateShopBtn('lamp', 80); updateShopBtn('tap', 100);
+        }
+
+        function updateShopBtn(key, price) {
+            const btn = document.getElementById(`btn-upg-${key}`);
+            if (!btn) return;
+            if (objects[key].upgraded) { btn.innerText = "Установлено ✓"; btn.disabled = true; }
+            else { btn.innerText = `Купить: ${price} 🟡`; btn.disabled = (moneyScore < price || !isGameRunning); }
+        }
+
+        function toggleRules(show) {
+            const rulesScreen = document.getElementById('rules-screen');
+            if (!rulesScreen) return;
+            if (show) rulesScreen.classList.remove('hidden');
+            else rulesScreen.classList.add('hidden');
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let isSoundMuted = false;
+
+        function toggleSound() {
+            isSoundMuted = !isSoundMuted;
+            const btn = document.getElementById('toggle-sound-btn');
+            if (!btn) return;
+            if (isSoundMuted) { btn.innerText = "Звук: ВЫКЛ 🔇"; btn.style.background = "#ef4444"; }
+            else { btn.innerText = "Звук: ВКЛ 🔊"; btn.style.background = "#475569"; }
+        }
+
+        function playSound(type) {
+            if (isSoundMuted) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(587.33, now);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            } else if (type === 'alarm') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(220, now); osc.frequency.linearRampToValueAtTime(180, now + 0.2);
+                gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'upgrade') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(329.63, now); osc.frequency.setValueAtTime(523.25, now + 0.08);
+                gain.gain.setValueAtTime(0.12, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'gameover') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, now); osc.frequency.linearRampToValueAtTime(40, now + 1.2);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.001, now + 1.2);
+                osc.start(now); osc.stop(now + 1.2);
+            }
+        }
+        function startGame() {
+            ecoScore = 0; moneyScore = 0; wasteScore = 0; gameLevel = 1; spawnTime = 1500; isGameRunning = true;
+            for (let key in objects) {
+                objects[key].upgraded = false; objects[key].isWasteful = false;
+                const el = document.getElementById(objects[key].id); el.classList.remove('wasteful'); el.innerText = objects[key].normal;
+            }
+            document.getElementById('upg-text-tv').innerText = "Базовые приборы";
+            document.getElementById('upg-text-stove').innerText = "Старая плита";
+            document.getElementById('upg-text-lamp').innerText = "Накаливания";
+            document.getElementById('upg-text-tap').innerText = "Обычные краны";
+            objects.stove.points = 15; objects.stove.coins = 15;
+            updateUI();
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            clearInterval(gameInterval); clearInterval(wasteInterval); clearInterval(levelInterval); clearInterval(autoLampInterval);
+            gameInterval = setInterval(triggerRandomWaste, spawnTime);
+            wasteInterval = setInterval(accumulateWaste, 800);
+            levelInterval = setInterval(increaseDifficulty, 12000);
+        }
+
+        function triggerRandomWaste() {
+            if (!isGameRunning) return;
+            const keys = Object.keys(objects);
+            const inactive = keys.filter(k => !objects[k].isWasteful);
+            if (inactive.length === 0) return;
+            const randomKey = inactive[Math.floor(Math.random() * inactive.length)];
+            objects[randomKey].isWasteful = true;
+            const el = document.getElementById(objects[randomKey].id);
+            el.classList.add('wasteful'); el.innerText = objects[randomKey].waste;
+            playSound('alarm');
+        }
+
+        function fixObject(key) {
+            if (!isGameRunning) return;
+            const obj = objects[key];
+            if (obj.isWasteful) {
+                obj.isWasteful = false;
+                const el = document.getElementById(obj.id); el.classList.remove('wasteful'); el.innerText = obj.normal;
+                showFloatingText(el, `+${obj.coins} 🟡`);
+                playSound('click');
+                ecoScore += obj.points; moneyScore += obj.coins; updateUI();
+            }
+        }
+
+        function showFloatingText(targetElement, text) {
+            const container = document.getElementById('game-container');
+            if (!container) return;
+            const textEl = document.createElement('div');
+            textEl.innerText = text;
+            textEl.style.position = 'absolute'; textEl.style.color = '#4ade80'; textEl.style.fontWeight = 'bold';
+            textEl.style.fontSize = '1.3rem'; textEl.style.zIndex = '100'; textEl.style.pointerEvents = 'none';
+            textEl.style.transition = 'all 0.6s ease-out'; textEl.style.textShadow = '0 0 8px rgba(0,0,0,0.8)';
+            const rect = targetElement.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            textEl.style.left = `${rect.left - containerRect.left + (rect.width / 2) - 20}px`;
+            textEl.style.top = `${rect.top - containerRect.top - 10}px`;
+            container.appendChild(textEl);
+            setTimeout(() => { textEl.style.transform = 'translateY(-40px)'; textEl.style.opacity = '0'; }, 10);
+            setTimeout(() => { textEl.remove(); }, 600);
+        }
+
+        function accumulateWaste() {
+            if (!isGameRunning) return;
+            let damage = 0;
+            if (objects.tv.isWasteful) damage += objects.tv.upgraded ? 1.5 : 3;
+            if (objects.stove.isWasteful) damage += 4;
+            if (objects.lamp.isWasteful) damage += 2;
+            if (objects.tap.isWasteful && !objects.tap.upgraded) damage += 3.5;
+            if (damage > 0) {
+                wasteScore += damage;
+                if (wasteScore >= 100) { wasteScore = 100; endGame(); }
+                updateUI();
+            }
+        }
+
+        function buyUpgrade(key, price) {
+            if (moneyScore >= price && !objects[key].upgraded && isGameRunning) {
+                moneyScore -= price; objects[key].upgraded = true;
+                if (key === 'tv') document.getElementById('upg-text-tv').innerText = "Класс А+++ ✓";
+                else if (key === 'stove') { document.getElementById('upg-text-stove').innerText = "Индукционная плита ✓"; objects.stove.points += 5; objects.stove.coins += 5; }
+                else if (key === 'lamp') { document.getElementById('upg-text-lamp').innerText = "LED-лампы ✓"; autoLampInterval = setInterval(() => { fixObject('lamp'); }, 7000); }
+                else if (key === 'tap') document.getElementById('upg-text-tap').innerText = "Сенсорные краны ✓";
+                playSound('upgrade'); updateUI();
+            }
+        }
+
+        function increaseDifficulty() {
+            if (!isGameRunning) return;
+            gameLevel++;
+            if (spawnTime > 400) { spawnTime -= 150; clearInterval(gameInterval); gameInterval = setInterval(triggerRandomWaste, spawnTime); }
+            updateUI();
+        }
+
+        function endGame() {
+            isGameRunning = false; clearInterval(gameInterval); clearInterval(wasteInterval); clearInterval(levelInterval); clearInterval(autoLampInterval);
+            document.getElementById('final-eco').innerText = ecoScore;
+            document.getElementById('gameover-screen').classList.remove('hidden'); 
+            playSound('gameover'); saveAttempt(ecoScore); updateUI();
+        }
+
+        function saveAttempt(score) {
+            let savedScores = JSON.parse(localStorage.getItem('ecoHouseScores')) || [];
+            savedScores.push(score);
+            savedScores.sort((a, b) => b - a);
+            savedScores = savedScores.slice(0, 5);
+            localStorage.setItem('ecoHouseScores', JSON.stringify(savedScores));
+            displayLeaderboard();
+        }
+
+        function displayLeaderboard() {
+            const container = document.getElementById('score-list-container');
+            if (!container) return;
+            let savedScores = JSON.parse(localStorage.getItem('ecoHouseScores')) || [];
+            container.innerHTML = '';
+            if (savedScores.length === 0) {
+                container.innerHTML = '<li class="score-item">Попыток пока нет</li>';
+                return;
+            }
+            savedScores.forEach((score, index) => {
+                container.innerHTML += `<li class="score-item">Место №${index + 1}: <strong>${score} кВт</strong></li>`;
+            });
+        }
+
+        displayLeaderboard();
+    </script>
+</body>
+</html>
